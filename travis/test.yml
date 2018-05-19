@@ -1,5 +1,18 @@
 ---
-- hosts: all
+- name: 'Register user'
+  hosts: all
+  tasks:
+    - name: Create a login user
+      user:
+        name: testuser
+        password: '123'
+        state: present
+        shell: /bin/bash
+        createhome: yes
+        home: /home/testuser
+
+- name: 'Setup vncserver'
+  hosts: all
   vars:
     vnc_user: testuser
     vnc_user_pass: 123
