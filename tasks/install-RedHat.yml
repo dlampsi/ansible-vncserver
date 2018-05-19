@@ -1,0 +1,7 @@
+---
+- name: 'Verifying that all packages installed'
+  yum:
+    name: "{{ item }}"
+    update_cache: yes
+    state: installed
+  with_items: "{{ vncserver_packages }}"

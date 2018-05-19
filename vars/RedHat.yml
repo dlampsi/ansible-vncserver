@@ -1,0 +1,5 @@
+---
+__vncserver_packages:
+  - tigervnc-server
+
+__vnc_display: 1

@@ -1,0 +1,139 @@
+---
+# Get home dir
+- name: "Determine user home directory"
+  shell: "getent passwd {{ vnc_user }} | cut -d: -f6"
+  register: userhome_path
+
+- set_fact:
+    userhome: "{{ userhome_path.stdout }}"
+
+
+# Checking of service exists
+- name: 'Checking exists of vnc service for user'
+  stat:
+    path: /etc/systemd/system/vncserver-{{ vnc_user }}@.service
+  register: vnc_exists
+  when: ansible_distribution_major_version == "7"
+
+- name: 'Checking exists of vnc service for user'
+  stat:
+    path: "{{ userhome }}/.vnc/passwd"
+  register: vnc_exists
+  when: ansible_distribution_major_version == "6"
+
+- debug:
+    msg: "VNC service for user '{{ vnc_user }}' already exists."
+  when: vnc_exists.stat.exists
+
+
+# Display number
+- name: 'Define vnc_display'
+  set_fact:
+    vnc_display: "{{ __vnc_display }}"
+  when:
+    - ansible_distribution_major_version == "7"
+    - (vnc_display is not defined) or (vnc_display == '')
+
+- name: 'Requesting current settings'
+  shell: 'grep -E "^\s*VNCSERVERS=" /etc/sysconfig/vncservers | grep -oE "([0-9]+\:)" | sed "s@:@@1" | sort -n | tail -n 1'
+  register: vnc_last_display
+  when:
+    - (vnc_display is not defined) or (vnc_display == '')
+    - ansible_distribution_major_version == "6"
+
+- set_fact:
+    vnc_display: "{{ (vnc_last_display.stdout | int) + 1 }}"
+  when:
+    - (vnc_display is not defined) or (vnc_display == '')
+    - ansible_distribution_major_version == "6"
+
+
+# Configure vnc service
+- name: 'Creating systemd service'
+  copy:
+    src: /usr/lib/systemd/system/vncserver@.service
+    dest: /etc/systemd/system/vncserver-{{ vnc_user }}@.service
+    remote_src: yes
+  when:
+    - ansible_distribution_major_version == "7"
+    - not vnc_exists.stat.exists
+
+- name: 'Configure vnc service'
+  tags: configure
+  lineinfile:
+    dest: /etc/systemd/system/vncserver-{{ vnc_user }}@.service
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  with_items:
+    - { regexp: '^User=<USER>', line: 'User={{ vnc_user }}' }
+    - { regexp: '^PIDFile=/home/<USER>/.vnc/%H%i.pid', line: 'PIDFile={{ vnc_user }}/.vnc/%H%i.pid' }
+  when:
+    - ansible_distribution_major_version == "7"
+    - not vnc_exists.stat.exists
+
+- name: 'Configure vnc service'
+  lineinfile:
+    dest: /etc/sysconfig/vncservers
+    regexp: '^VNCSERVERS=\"(.*(?<!{{ vnc_display }}:{{ vnc_user }}))\"'
+    line: 'VNCSERVERS="\1 {{ vnc_display }}:{{ vnc_user }}"'
+    backrefs: true
+    state: present
+  when:
+    - ansible_distribution_major_version == "6"
+    - not vnc_exists.stat.exists
+
+- name: 'Configure vnc service'
+  lineinfile:
+    path: /etc/sysconfig/vncservers
+    line: 'VNCSERVERARGS[{{ vnc_display }}]="-geometry 1920x1080"'
+  when:
+    - ansible_distribution_major_version == "6"
+    - not vnc_exists.stat.exists
+
+
+# Setup user configs
+- name: 'Checking exists of .vnc folder'
+  file:
+    path: "{{ userhome }}/.vnc"
+    state: directory
+    owner: "{{ vnc_user }}"
+    mode: 0755
+
+- name: 'Create xstartup file'
+  template:
+    src: "xstartup-RedHat-{{ ansible_distribution_major_version }}.j2"
+    dest: "{{ userhome }}/.vnc/xstartup"
+    owner: "{{ vnc_user }}"
+    mode: a+x
+
+- name: 'Generate promted password'
+  shell: 'echo {{ vnc_user_pass }} | vncpasswd -f > {{ userhome }}/.vnc/passwd'
+  when:
+    - vnc_user_pass is defined
+    - vnc_user_pass != ""
+
+- name: 'Generate default password'
+  shell: 'echo {{ vnc_user }} | vncpasswd -f > {{ userhome }}/.vnc/passwd'
+  when: (vnc_user_pass is undefined) or (vnc_user_pass == "")
+
+- name: 'Change passwd file mode'
+  file:
+    path: "{{ userhome }}/.vnc/passwd"
+    owner: "{{ vnc_user }}"
+    mode: 0600
+
+
+# Run service
+- name: 'Start vnc for user'
+  service:
+    name: vncserver-{{ vnc_user }}@:{{ vnc_display }}.service
+    daemon_reload: yes
+    enabled: yes
+    state: started
+  when: ansible_distribution_major_version == "7"
+
+- name: 'Start vnc for user'
+  become_user: "{{ vnc__username }}"
+  command: vncserver :{{ vnc__display }}
+  when: ansible_distribution_major_version == "6"

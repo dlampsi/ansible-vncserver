@@ -1,0 +1,8 @@
+---
+- hosts: all
+  vars:
+    vnc_user: testuser
+    vnc_user_pass: 123
+    vnc_display: 1
+  roles:
+    - ansible-vncserver
