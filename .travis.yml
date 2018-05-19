@@ -8,8 +8,8 @@ env:
   - distribution: centos
     version: 7
 
-  - distribution: centos
-    version: 6
+  # - distribution: centos
+  #   version: 6
 
 before_install:
   - 'sudo docker pull ${distribution}:${version}'
