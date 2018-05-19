@@ -7,6 +7,6 @@
     vncserver_packages: "{{ __vncserver_packages | list }}"
   when: vncserver_packages is not defined
 
-- include: "insttall-{{ ansible_os_family }}.yml"
+- include: "install-{{ ansible_os_family }}.yml"
 
 - include: "configure-{{ ansible_os_family }}.yml"

@@ -8,22 +8,24 @@
     userhome: "{{ userhome_path.stdout }}"
 
 
-# Checking of service exists
-- name: 'Checking exists of vnc service for user'
-  stat:
-    path: /etc/systemd/system/vncserver-{{ vnc_user }}@.service
-  register: vnc_exists
-  when: ansible_distribution_major_version == "7"
-
-- name: 'Checking exists of vnc service for user'
-  stat:
-    path: "{{ userhome }}/.vnc/passwd"
-  register: vnc_exists
-  when: ansible_distribution_major_version == "6"
-
-- debug:
-    msg: "VNC service for user '{{ vnc_user }}' already exists."
-  when: vnc_exists.stat.exists
+# # Checking of service exists
+# - name: 'Checking exists of vnc service for user'
+#   stat:
+#     path: /etc/systemd/system/vncserver-{{ vnc_user }}@.service
+#   register: vnc_exists7
+#   when: ansible_distribution_major_version == "7"
+#
+# - name: 'Checking exists of vnc service for user'
+#   stat:
+#     path: "{{ userhome }}/.vnc/passwd"
+#   register: vnc_exists6
+#   when: ansible_distribution_major_version == "6"
+#
+# - debug: var=vnc_exists
+#
+# - debug:
+#     msg: "VNC service for user '{{ vnc_user }}' already exists."
+#   when: (vnc_exists7.stat.exists) or (vnc_exists6.stat.exists)
 
 
 # Display number
@@ -54,23 +56,20 @@
     src: /usr/lib/systemd/system/vncserver@.service
     dest: /etc/systemd/system/vncserver-{{ vnc_user }}@.service
     remote_src: yes
-  when:
-    - ansible_distribution_major_version == "7"
-    - not vnc_exists.stat.exists
+  when: ansible_distribution_major_version == "7"
 
 - name: 'Configure vnc service'
   tags: configure
-  lineinfile:
-    dest: /etc/systemd/system/vncserver-{{ vnc_user }}@.service
-    regexp: "{{ item.regexp }}"
-    line: "{{ item.line }}"
-    state: present
-  with_items:
-    - { regexp: '^User=<USER>', line: 'User={{ vnc_user }}' }
-    - { regexp: '^PIDFile=/home/<USER>/.vnc/%H%i.pid', line: 'PIDFile={{ vnc_user }}/.vnc/%H%i.pid' }
-  when:
-    - ansible_distribution_major_version == "7"
-    - not vnc_exists.stat.exists
+  replace:
+    path: /etc/systemd/system/vncserver-{{ vnc_user }}@.service
+    regexp: '<USER>'
+    replace: '{{ vnc_user }}'
+  when: ansible_distribution_major_version == "7"
+
+- name: 'Reload systemd daemon'
+  systemd:
+    daemon_reload: yes
+  when: ansible_distribution_major_version == "7"
 
 - name: 'Configure vnc service'
   lineinfile:
@@ -79,17 +78,13 @@
     line: 'VNCSERVERS="\1 {{ vnc_display }}:{{ vnc_user }}"'
     backrefs: true
     state: present
-  when:
-    - ansible_distribution_major_version == "6"
-    - not vnc_exists.stat.exists
+  when: ansible_distribution_major_version == "6"
 
 - name: 'Configure vnc service'
   lineinfile:
     path: /etc/sysconfig/vncservers
     line: 'VNCSERVERARGS[{{ vnc_display }}]="-geometry 1920x1080"'
-  when:
-    - ansible_distribution_major_version == "6"
-    - not vnc_exists.stat.exists
+  when: ansible_distribution_major_version == "6"
 
 
 # Setup user configs
