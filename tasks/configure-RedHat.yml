@@ -66,6 +66,14 @@
     replace: '{{ vnc_user }}'
   when: ansible_distribution_major_version == "7"
 
+- name: 'Configure vnc service geometry'
+  tags: configure
+  replace:
+    path: /etc/systemd/system/vncserver-{{ vnc_user }}@.service
+    regexp: '^ExecStart=\/usr\/bin\/vncserver %i'
+    replace: 'ExecStart=/usr/bin/vncserver %i -geometry 1920x1080 -extension RANDR'
+  when: ansible_distribution_major_version == "7"
+
 - name: 'Reload systemd daemon'
   systemd:
     daemon_reload: yes
